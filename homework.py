@@ -1,12 +1,10 @@
-import requests
-import time
-
+import logging
 import os
 import sys
-import logging
+import time
 
+import requests
 import telegram
-
 from dotenv import load_dotenv
 
 load_dotenv()
