@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 import time
+from http import HTTPStatus
 
 import requests
 import telegram
@@ -34,7 +35,8 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Проверка переменных окружения."""
-    if not (PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID):
+    tokens = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
+    if all(not token for token in tokens):
         logging.critical('Переменные окружения отсутствуют')
     return (PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID)
 
@@ -57,17 +59,19 @@ def get_api_answer(timestamp):
                                 headers=HEADERS,
                                 params={'from_date': timestamp})
         logging.debug('Ответ получен')
-        if response.status_code != 200:
-            logging.error('Ошибка статуса')
-            raise Exception('Ошибка статуса')
     except requests.RequestException as error:
         logging.error('Нет доступа к ENDPOINT')
         raise error('Нет доступа к ENDPOINT')
+    if response.status_code != HTTPStatus.OK:
+        logging.error('Ошибка статуса')
+        raise Exception('Ошибка статуса')
     return response.json()
 
 
 def check_response(response):
     """Проверка ответов."""
+    # комментарий для ревьюера (потом удалю): а разве самая первая проверка не
+    # проверяет, словарь ли response?
     if not isinstance(response, dict):
         raise TypeError('response не относится к типу dict')
     if 'homeworks' not in response:
@@ -75,6 +79,9 @@ def check_response(response):
         raise Exception('Отсутствие ключа "homeworks"')
     if not isinstance(response['homeworks'], list):
         raise TypeError('В ключ вложен не список')
+    if len(response) <= 0:
+        logging.debug('Нет новых статусов')
+        raise Exception('Пустой список')
     return response['homeworks']
 
 
@@ -111,23 +118,17 @@ def main():
             response = get_api_answer(timestamp)
             timestamp = response.get('current_date')
             homeworks = check_response(response)
-            if len(homeworks) > 0:
-                logging.debug('Новый статус у работы!')
-                homework = homeworks[0]
-                message = parse_status(homework)
-                if current_message != message:
-                    send_message(bot, message)
-                    current_message = message
-                    timestamp = response.get('current_date')
-            else:
-                logging.debug('Нет новых статусов')
+            logging.debug('Новый статус у работы!')
+            message = parse_status(homeworks[0])
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             if message != current_message:
-                send_message(bot, message)
-                current_message = message
                 logging.error(message, exc_info=True)
         finally:
+            if current_message != message:
+                send_message(bot, message)
+                current_message = message
+                timestamp = response.get('current_date')
             time.sleep(RETRY_PERIOD)
 
 
