@@ -35,10 +35,7 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Проверка переменных окружения."""
-    tokens = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
-    if all(not token for token in tokens):
-        logging.critical('Переменные окружения отсутствуют')
-    return (PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID)
+    return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
 
 
 def send_message(bot, message):
@@ -59,7 +56,7 @@ def get_api_answer(timestamp):
                                 headers=HEADERS,
                                 params={'from_date': timestamp})
         logging.debug('Ответ получен')
-    except requests.RequestException as error:
+    except Exception as error:
         logging.error('Нет доступа к ENDPOINT')
         raise error('Нет доступа к ENDPOINT')
     if response.status_code != HTTPStatus.OK:
@@ -70,8 +67,6 @@ def get_api_answer(timestamp):
 
 def check_response(response):
     """Проверка ответов."""
-    # комментарий для ревьюера (потом удалю): а разве самая первая проверка не
-    # проверяет, словарь ли response?
     if not isinstance(response, dict):
         raise TypeError('response не относится к типу dict')
     if 'homeworks' not in response:
@@ -79,7 +74,9 @@ def check_response(response):
         raise Exception('Отсутствие ключа "homeworks"')
     if not isinstance(response['homeworks'], list):
         raise TypeError('В ключ вложен не список')
-    if len(response) <= 0:
+    if not isinstance(response['homeworks'][0], dict):
+        raise TypeError('homework не относится к типу dict')
+    if response is None:
         logging.debug('Нет новых статусов')
         raise Exception('Пустой список')
     return response['homeworks']
